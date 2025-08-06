@@ -99,6 +99,14 @@ class VendaService {
 
       final novaVenda = Venda.fromJson(response);
 
+      // Registrar movimentação de criação da venda
+      await _registrarMovimentacaoVendaDetalhada(
+        '', // produtoId vazio para venda geral
+        0, // quantidade 0 para venda geral
+        'Venda criada',
+        novaVenda.id,
+      );
+
       // Nota: A atualização do estoque será feita quando os itens da venda forem criados
       // através do método createItemVenda
 
@@ -134,29 +142,30 @@ class VendaService {
           'quantidade': -quantidade,
         });
       }
-
-      // Registrar movimentação de estoque
-      await _registrarMovimentacaoVenda(produtoId, quantidade);
     } catch (error) {
       print('Erro ao atualizar estoque da venda: $error');
       // Não falha a venda se o estoque falhar
     }
   }
 
-  // Método para registrar movimentação de estoque da venda
-  Future<void> _registrarMovimentacaoVenda(
+  // Método para registrar movimentação de estoque da venda com detalhes
+  Future<void> _registrarMovimentacaoVendaDetalhada(
     String produtoId,
     int quantidade,
+    String operacao,
+    String? vendaId,
   ) async {
     try {
+      final observacao = 'VENDA: $operacao - $quantidade unidades';
+
       final movimentacao = MovimentacaoEstoque(
         id: '', // Será gerado pelo banco
         data: DateTime.now(),
-        produtoId: produtoId,
+        produtoId: produtoId.isEmpty ? 'VENDA_GERAL' : produtoId,
         tipo: 'venda',
         quantidade: quantidade,
-        referenciaId: null, // Pode ser usado para referenciar a venda
-        observacao: 'Venda registrada automaticamente',
+        referenciaId: vendaId,
+        observacao: observacao,
       );
 
       final dataToInsert = {
@@ -196,7 +205,17 @@ class VendaService {
           .select()
           .single();
 
-      return Venda.fromJson(response);
+      final vendaAtualizada = Venda.fromJson(response);
+
+      // Registrar movimentação de edição da venda
+      await _registrarMovimentacaoVendaDetalhada(
+        '', // produtoId vazio para venda geral
+        0, // quantidade 0 para venda geral
+        'Venda editada',
+        venda.id,
+      );
+
+      return vendaAtualizada;
     } catch (e) {
       throw Exception('Erro ao atualizar venda: $e');
     }
@@ -205,7 +224,33 @@ class VendaService {
   // Deletar venda
   Future<void> delete(String id) async {
     try {
+      // Buscar todos os itens da venda antes de deletar
+      final itens = await getItensByVenda(id);
+
+      // Deletar a venda
       await _client.from('vendas').delete().eq('id', id);
+
+      // Restaurar estoque de todos os itens da venda
+      for (final item in itens) {
+        if (item.vendidos > 0) {
+          await _restaurarEstoqueVenda(item.produtoId, item.vendidos);
+          // Registrar movimentação de restauração para cada item
+          await _registrarMovimentacaoVendaDetalhada(
+            item.produtoId,
+            item.vendidos,
+            'Venda excluída - Estoque restaurado',
+            id,
+          );
+        }
+      }
+
+      // Registrar movimentação de exclusão da venda
+      await _registrarMovimentacaoVendaDetalhada(
+        '', // produtoId vazio para venda geral
+        0, // quantidade 0 para venda geral
+        'Venda excluída',
+        id,
+      );
     } catch (e) {
       throw Exception('Erro ao deletar venda: $e');
     }
@@ -260,6 +305,13 @@ class VendaService {
 
       // Atualizar estoque (diminuir quantidade vendida)
       await _atualizarEstoqueVenda(item.produtoId, vendidos);
+      // Registrar movimentação de criação
+      await _registrarMovimentacaoVendaDetalhada(
+        item.produtoId,
+        vendidos,
+        'Item criado',
+        item.vendaId,
+      );
 
       return novoItem;
     } catch (e) {
@@ -311,6 +363,15 @@ class VendaService {
       final diferencaVendidos = vendidos - vendidosAtual;
       if (diferencaVendidos != 0) {
         await _atualizarEstoqueVenda(item.produtoId, diferencaVendidos);
+        // Registrar movimentação de ajuste
+        await _registrarMovimentacaoVendaDetalhada(
+          item.produtoId,
+          diferencaVendidos.abs(),
+          diferencaVendidos > 0
+              ? 'Item editado - Venda aumentada'
+              : 'Item editado - Venda reduzida',
+          item.vendaId,
+        );
       }
 
       return itemAtualizado;
@@ -337,6 +398,13 @@ class VendaService {
 
       if (vendidos > 0) {
         await _restaurarEstoqueVenda(produtoId, vendidos);
+        // Registrar movimentação de restauração
+        await _registrarMovimentacaoVendaDetalhada(
+          produtoId,
+          vendidos,
+          'Item removido - Estoque restaurado',
+          null,
+        );
       }
     } catch (e) {
       throw Exception('Erro ao deletar item de venda: $e');
@@ -369,44 +437,9 @@ class VendaService {
           'quantidade': quantidade,
         });
       }
-
-      // Registrar movimentação de estoque (restauração)
-      await _registrarMovimentacaoRestauracao(produtoId, quantidade);
     } catch (error) {
       print('Erro ao restaurar estoque da venda: $error');
       // Não falha a deleção se o estoque falhar
-    }
-  }
-
-  // Método para registrar movimentação de restauração de estoque
-  Future<void> _registrarMovimentacaoRestauracao(
-    String produtoId,
-    int quantidade,
-  ) async {
-    try {
-      final movimentacao = MovimentacaoEstoque(
-        id: '', // Será gerado pelo banco
-        data: DateTime.now(),
-        produtoId: produtoId,
-        tipo: 'entrada', // Restauração é tratada como entrada
-        quantidade: quantidade,
-        referenciaId: null,
-        observacao: 'Restauração de estoque - Item de venda removido',
-      );
-
-      final dataToInsert = {
-        'data': movimentacao.data.toIso8601String(),
-        'produto_id': movimentacao.produtoId,
-        'tipo': movimentacao.tipo,
-        'quantidade': movimentacao.quantidade,
-        'referencia_id': movimentacao.referenciaId,
-        'observacao': movimentacao.observacao,
-      };
-
-      await _client.from('movimentacoes_estoque').insert(dataToInsert);
-    } catch (error) {
-      print('Erro ao registrar movimentação de restauração: $error');
-      // Não falha a restauração se a movimentação falhar
     }
   }
 

@@ -560,27 +560,27 @@ class _EstoqueViewState extends ConsumerState<EstoqueView> {
                                   ),
                                   const SizedBox(height: 16),
 
-                                  // Actions
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      OutlinedButton.icon(
-                                        onPressed: () => _showAjusteDialog(
-                                          item['produto_id'],
-                                          produto['nome'],
-                                          quantidade,
-                                        ),
-                                        icon: const Icon(Icons.edit, size: 16),
-                                        label: const Text('Ajustar'),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: AppColors.blue,
-                                          side: BorderSide(
-                                            color: AppColors.blue,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  // Actions - Desabilitadas por segurança
+                                  // Row(
+                                  //   mainAxisAlignment: MainAxisAlignment.end,
+                                  //   children: [
+                                  //     OutlinedButton.icon(
+                                  //       onPressed: () => _showAjusteDialog(
+                                  //         item['produto_id'],
+                                  //         produto['nome'],
+                                  //         quantidade,
+                                  //       ),
+                                  //       icon: const Icon(Icons.edit, size: 16),
+                                  //       label: const Text('Ajustar'),
+                                  //       style: OutlinedButton.styleFrom(
+                                  //         foregroundColor: AppColors.blue,
+                                  //         side: BorderSide(
+                                  //           color: AppColors.blue,
+                                  //         ),
+                                  //       ),
+                                  //     ),
+                                  //   ],
+                                  // ),
                                 ],
                               ),
                             ),

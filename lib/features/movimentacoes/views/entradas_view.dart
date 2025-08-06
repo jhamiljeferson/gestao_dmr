@@ -658,35 +658,35 @@ class _EntradasViewState extends ConsumerState<EntradasView> {
 
                             const SizedBox(height: 16),
 
-                            // Actions
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _showEditEntradaDialog(entrada),
-                                  icon: const Icon(Icons.edit, size: 16),
-                                  label: const Text('Editar'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.blue,
-                                    side: const BorderSide(
-                                      color: AppColors.blue,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _deleteEntrada(entrada['id']),
-                                  icon: const Icon(Icons.delete, size: 16),
-                                  label: const Text('Excluir'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.red,
-                                    side: const BorderSide(color: Colors.red),
-                                  ),
-                                ),
-                              ],
-                            ),
+                            // Actions - Desabilitadas por segurança
+                            // Row(
+                            //   mainAxisAlignment: MainAxisAlignment.end,
+                            //   children: [
+                            //     OutlinedButton.icon(
+                            //       onPressed: () =>
+                            //           _showEditEntradaDialog(entrada),
+                            //       icon: const Icon(Icons.edit, size: 16),
+                            //       label: const Text('Editar'),
+                            //       style: OutlinedButton.styleFrom(
+                            //         foregroundColor: AppColors.blue,
+                            //         side: const BorderSide(
+                            //           color: AppColors.blue,
+                            //         ),
+                            //       ),
+                            //     ),
+                            //     const SizedBox(width: 8),
+                            //     OutlinedButton.icon(
+                            //       onPressed: () =>
+                            //           _deleteEntrada(entrada['id']),
+                            //       icon: const Icon(Icons.delete, size: 16),
+                            //       label: const Text('Excluir'),
+                            //       style: OutlinedButton.styleFrom(
+                            //         foregroundColor: Colors.red,
+                            //         side: const BorderSide(color: Colors.red),
+                            //       ),
+                            //     ),
+                            //   ],
+                            // ),
                           ],
                         ),
                       ),
