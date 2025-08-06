@@ -175,6 +175,17 @@ class VendaService {
     }
   }
 
+  // Método para verificar se uma tabela existe
+  Future<bool> _tabelaExiste(String nomeTabela) async {
+    try {
+      await _client.from(nomeTabela).select('count').limit(1);
+      return true;
+    } catch (error) {
+      print('Tabela $nomeTabela não existe: $error');
+      return false;
+    }
+  }
+
   // Atualizar venda
   Future<Venda> update(Venda venda) async {
     try {

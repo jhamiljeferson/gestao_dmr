@@ -49,6 +49,18 @@ class MovimentacaoService {
     return novaMovimentacao;
   }
 
+  // Método para verificar se uma tabela existe e tratar erros
+  Future<void> _verificarTabela(String nomeTabela) async {
+    try {
+      await _supabase.from(nomeTabela).select('count').limit(1);
+    } catch (error) {
+      print(
+        'Aviso: Tabela $nomeTabela não existe ou não está acessível: $error',
+      );
+      // Não falha a operação, apenas registra o aviso
+    }
+  }
+
   // Método para atualizar estoque
   Future<void> _atualizarEstoque(
     String produtoId,
@@ -94,6 +106,17 @@ class MovimentacaoService {
     } catch (error) {
       print('Erro ao atualizar estoque: $error');
       // Não falha a movimentação se o estoque falhar
+    }
+  }
+
+  // Método para verificar se uma tabela existe
+  Future<bool> _tabelaExiste(String nomeTabela) async {
+    try {
+      await _supabase.from(nomeTabela).select('count').limit(1);
+      return true;
+    } catch (error) {
+      print('Tabela $nomeTabela não existe: $error');
+      return false;
     }
   }
 
