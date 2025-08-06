@@ -128,6 +128,33 @@ class MovimentacaoController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  // Editar movimentação
+  Future<void> updateMovimentacao({
+    required String id,
+    required String produtoId,
+    required String tipo,
+    required int quantidade,
+    String? observacao,
+  }) async {
+    state = const AsyncValue.loading();
+
+    try {
+      final movimentacao = MovimentacaoEstoque(
+        id: id,
+        data: DateTime.now(),
+        produtoId: produtoId,
+        tipo: tipo,
+        quantidade: quantidade,
+        observacao: observacao,
+      );
+
+      await _service.update(movimentacao);
+      state = const AsyncValue.data(null);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
   // Método de teste para verificar conexão
   Future<void> testConnection() async {
     try {

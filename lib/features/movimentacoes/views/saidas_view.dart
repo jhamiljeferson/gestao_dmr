@@ -224,6 +224,164 @@ class _SaidasViewState extends ConsumerState<SaidasView> {
     );
   }
 
+  void _showEditSaidaDialog(Map<String, dynamic> saida) {
+    final produto = saida['produtos'] as Map<String, dynamic>;
+    _selectedProdutoId = saida['produto_id'];
+    _quantidadeController.text = saida['quantidade'].toString();
+    _observacaoController.text = saida['observacao'] ?? '';
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.blue,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.edit, color: Colors.white, size: 24),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Editar Saída',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (_isLoading)
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // Content
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        // Produto (readonly)
+                        TextFormField(
+                          initialValue:
+                              '${produto['codigo']} - ${produto['nome']}',
+                          enabled: false,
+                          decoration: const InputDecoration(
+                            labelText: 'Produto',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Quantidade
+                        AppTextField(
+                          label: 'Quantidade',
+                          controller: _quantidadeController,
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Informe a quantidade';
+                            }
+                            if (int.tryParse(value) == null) {
+                              return 'Valor deve ser um número';
+                            }
+                            if (int.parse(value) <= 0) {
+                              return 'Quantidade deve ser maior que zero';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Observação
+                        TextFormField(
+                          controller: _observacaoController,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Observação (opcional)',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Actions
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(8),
+                    bottomRight: Radius.circular(8),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => _updateSaida(saida['id']),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Salvar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveSaida() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -314,6 +472,40 @@ class _SaidasViewState extends ConsumerState<SaidasView> {
       AppFeedback.showSuccess(context, 'Saída registrada com sucesso!');
     } catch (error) {
       AppFeedback.showError(context, 'Erro ao registrar saída: $error');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _updateSaida(String id) async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final quantidade = int.parse(_quantidadeController.text);
+      final observacao = _observacaoController.text.trim().isEmpty
+          ? null
+          : _observacaoController.text.trim();
+
+      await ref
+          .read(movimentacaoControllerProvider.notifier)
+          .updateMovimentacao(
+            id: id,
+            produtoId: _selectedProdutoId!,
+            tipo: 'saida',
+            quantidade: quantidade,
+            observacao: observacao,
+          );
+
+      // Invalida os providers para atualizar a lista
+      ref.invalidate(saidasProvider);
+      ref.invalidate(estoqueProvider);
+
+      Navigator.of(context).pop();
+      AppFeedback.showSuccess(context, 'Saída atualizada com sucesso!');
+    } catch (error) {
+      AppFeedback.showError(context, 'Erro ao atualizar saída: $error');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -549,6 +741,18 @@ class _SaidasViewState extends ConsumerState<SaidasView> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
+                                OutlinedButton.icon(
+                                  onPressed: () => _showEditSaidaDialog(saida),
+                                  icon: const Icon(Icons.edit, size: 16),
+                                  label: const Text('Editar'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.blue,
+                                    side: const BorderSide(
+                                      color: AppColors.blue,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
                                 OutlinedButton.icon(
                                   onPressed: () => _deleteSaida(saida['id']),
                                   icon: const Icon(Icons.delete, size: 16),
