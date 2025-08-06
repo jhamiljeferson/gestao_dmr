@@ -11,6 +11,7 @@ import '../features/vendas/views/vendas_view.dart';
 import '../features/vendas/views/itens_venda_view.dart';
 import '../features/movimentacoes/views/entradas_view.dart';
 import '../features/movimentacoes/views/saidas_view.dart';
+import '../features/movimentacoes/views/relatorio_movimentacoes_view.dart';
 import '../features/estoque/views/estoque_view.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -55,6 +56,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const EntradasView(),
       ),
       GoRoute(path: '/saidas', builder: (context, state) => const SaidasView()),
+      GoRoute(
+        path: '/relatorio-movimentacoes',
+        builder: (context, state) => const RelatorioMovimentacoesView(),
+      ),
       GoRoute(
         path: '/estoque',
         builder: (context, state) => const EstoqueView(),

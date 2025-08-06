@@ -36,6 +36,31 @@ final saidasProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   }
 });
 
+// Provider para todas as movimentações com filtros
+final movimentacoesFiltradasProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, Map<String, dynamic>>((
+      ref,
+      filtros,
+    ) async {
+      try {
+        print('Provider movimentacoesFiltradasProvider executando...');
+        final service = ref.read(movimentacaoServiceProvider);
+        final result = await service.getAllWithProduto(
+          tipo: filtros['tipo'],
+          produtoId: filtros['produtoId'],
+          dataInicio: filtros['dataInicio'],
+          dataFim: filtros['dataFim'],
+        );
+        print(
+          'Provider movimentacoesFiltradasProvider resultado: ${result.length} movimentações',
+        );
+        return result;
+      } catch (error) {
+        print('Erro no provider movimentacoesFiltradasProvider: $error');
+        rethrow;
+      }
+    });
+
 class MovimentacaoController extends StateNotifier<AsyncValue<void>> {
   final MovimentacaoService _service;
 

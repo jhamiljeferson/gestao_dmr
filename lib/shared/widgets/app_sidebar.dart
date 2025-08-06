@@ -48,6 +48,11 @@ const List<SidebarItemWithRoute> sidebarItemsWithRoutes = [
     route: '/saidas',
   ),
   SidebarItemWithRoute(
+    icon: Icons.assessment,
+    label: 'Relatório',
+    route: '/relatorio-movimentacoes',
+  ),
+  SidebarItemWithRoute(
     icon: Icons.inventory_2,
     label: 'Estoque',
     route: '/estoque',

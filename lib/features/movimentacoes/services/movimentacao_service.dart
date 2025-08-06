@@ -145,4 +145,54 @@ class MovimentacaoService {
       rethrow;
     }
   }
+
+  // Buscar todas as movimentações com dados do produto
+  Future<List<Map<String, dynamic>>> getAllWithProduto({
+    String? tipo,
+    String? produtoId,
+    DateTime? dataInicio,
+    DateTime? dataFim,
+  }) async {
+    try {
+      print('Buscando todas as movimentações com filtros');
+
+      var query = _supabase.from('movimentacoes_estoque').select('''
+            *,
+            produtos:produto_id (
+              id,
+              codigo,
+              nome
+            )
+          ''');
+
+      // Aplicar filtros
+      if (tipo != null && tipo.isNotEmpty) {
+        query = query.eq('tipo', tipo);
+      }
+
+      if (produtoId != null && produtoId.isNotEmpty) {
+        query = query.eq('produto_id', produtoId);
+      }
+
+      if (dataInicio != null) {
+        query = query.gte('data', dataInicio.toIso8601String().split('T')[0]);
+      }
+
+      if (dataFim != null) {
+        query = query.lte('data', dataFim.toIso8601String().split('T')[0]);
+      }
+
+      final response = await query.order('data', ascending: false);
+
+      print('Resposta do Supabase: ${response.length} registros');
+
+      // Converter explicitamente para List<Map<String, dynamic>>
+      final List<Map<String, dynamic>> result = response
+          .cast<Map<String, dynamic>>();
+      return result;
+    } catch (error) {
+      print('Erro ao buscar movimentações: $error');
+      rethrow;
+    }
+  }
 }

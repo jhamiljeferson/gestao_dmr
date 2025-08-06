@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/venda_model.dart';
 import '../models/item_venda_model.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../movimentacoes/models/movimentacao_estoque_model.dart';
 
 class VendaService {
   final SupabaseClient _client = SupabaseService().client;
@@ -133,9 +134,44 @@ class VendaService {
           'quantidade': -quantidade,
         });
       }
+
+      // Registrar movimentação de estoque
+      await _registrarMovimentacaoVenda(produtoId, quantidade);
     } catch (error) {
       print('Erro ao atualizar estoque da venda: $error');
       // Não falha a venda se o estoque falhar
+    }
+  }
+
+  // Método para registrar movimentação de estoque da venda
+  Future<void> _registrarMovimentacaoVenda(
+    String produtoId,
+    int quantidade,
+  ) async {
+    try {
+      final movimentacao = MovimentacaoEstoque(
+        id: '', // Será gerado pelo banco
+        data: DateTime.now(),
+        produtoId: produtoId,
+        tipo: 'venda',
+        quantidade: quantidade,
+        referenciaId: null, // Pode ser usado para referenciar a venda
+        observacao: 'Venda registrada automaticamente',
+      );
+
+      final dataToInsert = {
+        'data': movimentacao.data.toIso8601String(),
+        'produto_id': movimentacao.produtoId,
+        'tipo': movimentacao.tipo,
+        'quantidade': movimentacao.quantidade,
+        'referencia_id': movimentacao.referenciaId,
+        'observacao': movimentacao.observacao,
+      };
+
+      await _client.from('movimentacoes_estoque').insert(dataToInsert);
+    } catch (error) {
+      print('Erro ao registrar movimentação da venda: $error');
+      // Não falha a venda se a movimentação falhar
     }
   }
 
@@ -322,9 +358,44 @@ class VendaService {
           'quantidade': quantidade,
         });
       }
+
+      // Registrar movimentação de estoque (restauração)
+      await _registrarMovimentacaoRestauracao(produtoId, quantidade);
     } catch (error) {
       print('Erro ao restaurar estoque da venda: $error');
       // Não falha a deleção se o estoque falhar
+    }
+  }
+
+  // Método para registrar movimentação de restauração de estoque
+  Future<void> _registrarMovimentacaoRestauracao(
+    String produtoId,
+    int quantidade,
+  ) async {
+    try {
+      final movimentacao = MovimentacaoEstoque(
+        id: '', // Será gerado pelo banco
+        data: DateTime.now(),
+        produtoId: produtoId,
+        tipo: 'entrada', // Restauração é tratada como entrada
+        quantidade: quantidade,
+        referenciaId: null,
+        observacao: 'Restauração de estoque - Item de venda removido',
+      );
+
+      final dataToInsert = {
+        'data': movimentacao.data.toIso8601String(),
+        'produto_id': movimentacao.produtoId,
+        'tipo': movimentacao.tipo,
+        'quantidade': movimentacao.quantidade,
+        'referencia_id': movimentacao.referenciaId,
+        'observacao': movimentacao.observacao,
+      };
+
+      await _client.from('movimentacoes_estoque').insert(dataToInsert);
+    } catch (error) {
+      print('Erro ao registrar movimentação de restauração: $error');
+      // Não falha a restauração se a movimentação falhar
     }
   }
 
