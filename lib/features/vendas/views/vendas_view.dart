@@ -581,7 +581,8 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                     0.0;
                                 final totalPagamento = valorPix + valorDinheiro;
                                 final isValid =
-                                    totalPagamento == totalItens &&
+                                    (totalPagamento - totalItens).abs() <=
+                                        0.01 &&
                                     totalItens > 0;
 
                                 if (totalItens > 0) {
@@ -645,7 +646,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'A soma dos valores de pagamento não corresponde ao total dos itens:',
+                                                  'A soma dos valores de pagamento deve ser igual ao total dos itens:',
                                                   style: TextStyle(
                                                     color: Colors.red[700],
                                                     fontSize: 12,
@@ -859,13 +860,26 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                           ),
                                           const SizedBox(width: 8),
                                           Expanded(
-                                            child: Text(
-                                              'Valores de pagamento corretos!',
-                                              style: TextStyle(
-                                                color: Colors.green,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Valores de pagamento corretos!',
+                                                  style: TextStyle(
+                                                    color: Colors.green,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Total: R\$ ${totalPagamento.toStringAsFixed(2)}',
+                                                  style: TextStyle(
+                                                    color: Colors.green,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
@@ -1880,10 +1894,121 @@ class _VendasViewState extends ConsumerState<VendasView> {
 
       // Verificar se os valores de pagamento somam o total dos itens
       final totalPagamento = valorPix + valorDinheiro;
-      if (totalPagamento != totalItens) {
-        AppFeedback.showError(
-          context,
-          'A soma dos valores de pagamento (PIX + Dinheiro) deve ser igual ao total dos itens (R\$ ${totalItens.toStringAsFixed(2)})',
+      if ((totalPagamento - totalItens).abs() > 0.01) {
+        // Tolerância de 1 centavo
+        // Mostrar alerta detalhado com os valores
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Valores Incorretos'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'A soma dos valores de pagamento deve ser igual ao total dos itens:',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'PIX:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text('R\$ ${valorPix.toStringAsFixed(2)}'),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Dinheiro:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text('R\$ ${valorDinheiro.toStringAsFixed(2)}'),
+                        ],
+                      ),
+                      const Divider(height: 16, color: Colors.red),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Pagamento:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text('R\$ ${totalPagamento.toStringAsFixed(2)}'),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Itens:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text('R\$ ${totalItens.toStringAsFixed(2)}'),
+                        ],
+                      ),
+                      const Divider(height: 16, color: Colors.red),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Diferença:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                          Text(
+                            'R\$ ${(totalPagamento - totalItens).abs().toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Corrija os valores de PIX e/ou Dinheiro para que a soma seja igual ao total dos itens.',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
         setState(() => _isLoading = false);
         return;
