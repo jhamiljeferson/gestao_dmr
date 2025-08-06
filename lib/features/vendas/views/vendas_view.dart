@@ -1516,7 +1516,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () => _addItem(setDialogState),
+                        onPressed: () async => await _addItem(setDialogState),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.blue,
                           foregroundColor: Colors.white,
@@ -1534,7 +1534,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
     );
   }
 
-  void _addItem(StateSetter setDialogState) {
+  Future<void> _addItem(StateSetter setDialogState) async {
     if (!_itemFormKey.currentState!.validate()) return;
 
     final retirada = int.parse(_retiradaController.text);
@@ -1543,6 +1543,100 @@ class _VendasViewState extends ConsumerState<VendasView> {
     final precoUnitario = double.parse(_precoUnitarioController.text);
     final vendidos = ItemVenda.calcularVendidos(retirada, reposicao, retorno);
     final subtotal = ItemVenda.calcularSubtotal(vendidos, precoUnitario);
+
+    // Verificar estoque antes de adicionar o item
+    final estoqueAtual = await ref
+        .read(estoqueControllerProvider.notifier)
+        .getEstoqueProduto(_selectedProdutoId!);
+
+    if (estoqueAtual != null) {
+      final estoqueDisponivel = estoqueAtual.quantidade;
+      final estoqueRestante = estoqueDisponivel - vendidos;
+
+      if (estoqueRestante < 0) {
+        // Buscar nome do produto para mostrar no alerta
+        final produtosState = ref.read(produtoControllerProvider);
+        String nomeProduto = 'Produto';
+
+        produtosState.when(
+          loading: () => nomeProduto = 'Produto',
+          error: (error, stack) => nomeProduto = 'Produto',
+          data: (produtos) {
+            try {
+              final produto = produtos.firstWhere(
+                (p) => p.id == _selectedProdutoId,
+              );
+              nomeProduto = produto.nome;
+            } catch (e) {
+              nomeProduto = 'Produto';
+            }
+          },
+        );
+
+        // Mostrar alerta de estoque insuficiente
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Estoque Insuficiente'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Produto: $nomeProduto',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Quantidade a vender: $vendidos unidades',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Estoque disponível: $estoqueDisponivel unidades',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Após esta venda, o estoque ficaria negativo em ${estoqueRestante.abs()} unidades.',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Não é possível adicionar este item. Verifique o estoque disponível.',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        return; // Não adiciona o item
+      }
+    }
 
     // Buscar nome do produto
     final produtosState = ref.read(produtoControllerProvider);
@@ -1793,6 +1887,105 @@ class _VendasViewState extends ConsumerState<VendasView> {
         );
         setState(() => _isLoading = false);
         return;
+      }
+
+      // Verificar estoque antes de salvar a venda
+      for (final itemData in _itensTemp) {
+        final produtoId = itemData['produtoId'];
+        final vendidos = itemData['vendidos'];
+
+        // Verificar estoque atual do produto
+        final estoqueAtual = await ref
+            .read(estoqueControllerProvider.notifier)
+            .getEstoqueProduto(produtoId);
+
+        if (estoqueAtual != null) {
+          final estoqueDisponivel = estoqueAtual.quantidade;
+          final estoqueRestante = estoqueDisponivel - vendidos;
+
+          if (estoqueRestante < 0) {
+            // Buscar nome do produto para mostrar no alerta
+            final produtosState = ref.read(produtoControllerProvider);
+            String nomeProduto = 'Produto';
+
+            produtosState.when(
+              loading: () => nomeProduto = 'Produto',
+              error: (error, stack) => nomeProduto = 'Produto',
+              data: (produtos) {
+                try {
+                  final produto = produtos.firstWhere((p) => p.id == produtoId);
+                  nomeProduto = produto.nome;
+                } catch (e) {
+                  nomeProduto = 'Produto';
+                }
+              },
+            );
+
+            // Mostrar alerta de estoque insuficiente
+            await showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.error, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Estoque Insuficiente'),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Produto: $nomeProduto',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Quantidade a vender: $vendidos unidades',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Estoque disponível: $estoqueDisponivel unidades',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Após esta venda, o estoque ficaria negativo em ${estoqueRestante.abs()} unidades.',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Não é possível registrar esta venda. Verifique o estoque disponível.',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+                actions: [
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+
+            setState(() => _isLoading = false);
+            return;
+          }
+        }
       }
 
       if (_editingVenda == null) {

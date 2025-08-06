@@ -11,6 +11,7 @@ import '../../../shared/widgets/app_feedback.dart';
 import '../../../config/theme.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../controllers/estoque_controller.dart';
+import '../../produtos/controllers/produto_controller.dart';
 
 class EstoqueView extends ConsumerStatefulWidget {
   const EstoqueView({Key? key}) : super(key: key);
@@ -200,6 +201,87 @@ class _EstoqueViewState extends ConsumerState<EstoqueView> {
 
     try {
       final novaQuantidade = int.parse(_quantidadeController.text);
+
+      // Verificar se a nova quantidade será negativa
+      if (novaQuantidade < 0) {
+        // Buscar nome do produto para mostrar no alerta
+        final produtosState = ref.read(produtoControllerProvider);
+        String nomeProduto = 'Produto';
+
+        produtosState.when(
+          loading: () => nomeProduto = 'Produto',
+          error: (error, stack) => nomeProduto = 'Produto',
+          data: (produtos) {
+            try {
+              final produto = produtos.firstWhere(
+                (p) => p.id == _selectedProdutoId,
+              );
+              nomeProduto = produto.nome;
+            } catch (e) {
+              nomeProduto = 'Produto';
+            }
+          },
+        );
+
+        // Mostrar alerta de estoque negativo
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Estoque Negativo'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Produto: $nomeProduto',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Quantidade definida: $novaQuantidade unidades',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Não é possível definir estoque negativo. Use um valor maior ou igual a zero.',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Verifique a quantidade e tente novamente.',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        setState(() => _isLoading = false);
+        return;
+      }
 
       await ref
           .read(estoqueControllerProvider.notifier)

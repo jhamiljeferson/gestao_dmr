@@ -235,6 +235,69 @@ class _SaidasViewState extends ConsumerState<SaidasView> {
           ? null
           : _observacaoController.text.trim();
 
+      // Verificar estoque antes de salvar
+      final estoqueAtual = await ref
+          .read(estoqueControllerProvider.notifier)
+          .getEstoqueProduto(_selectedProdutoId!);
+
+      if (estoqueAtual != null) {
+        final estoqueDisponivel = estoqueAtual.quantidade;
+        final estoqueRestante = estoqueDisponivel - quantidade;
+
+        if (estoqueRestante < 0) {
+          // Mostrar alerta de estoque insuficiente
+          await showDialog<void>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.error, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Estoque Insuficiente'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'A quantidade solicitada ($quantidade) é maior que o estoque disponível ($estoqueDisponivel).',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Após esta saída, o estoque ficaria negativo em ${estoqueRestante.abs()} unidades.',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Não é possível registrar esta saída. Verifique o estoque disponível.',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
+
       await ref
           .read(movimentacaoControllerProvider.notifier)
           .createSaida(
