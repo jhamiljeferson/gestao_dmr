@@ -12,6 +12,7 @@ import '../../../config/theme.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../models/produto_model.dart';
 import '../controllers/produto_controller.dart';
+import '../../estoque/controllers/estoque_controller.dart';
 
 class ProdutosView extends ConsumerStatefulWidget {
   const ProdutosView({Key? key}) : super(key: key);
@@ -116,6 +117,10 @@ class _ProdutosViewState extends ConsumerState<ProdutosView> {
         await ref
             .read(produtoControllerProvider.notifier)
             .createProduto(novoProduto);
+
+        // Invalidar provider de estoque para atualizar a lista
+        ref.invalidate(estoqueProvider);
+
         AppFeedback.showSuccess(context, 'Produto criado com sucesso!');
       } else {
         // Atualizar produto existente

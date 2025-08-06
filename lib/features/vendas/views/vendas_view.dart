@@ -16,6 +16,7 @@ import '../controllers/venda_controller.dart';
 import '../../pontos/controllers/ponto_controller.dart';
 import '../../vendedores/controllers/vendedor_controller.dart';
 import '../../produtos/controllers/produto_controller.dart';
+import '../../estoque/controllers/estoque_controller.dart';
 import 'package:intl/intl.dart';
 
 class VendasView extends ConsumerStatefulWidget {
@@ -1831,6 +1832,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
         // Invalidar providers para atualizar os dados
         ref.invalidate(vendaControllerProvider);
         ref.invalidate(itensVendaProvider(vendaCriada.id));
+        ref.invalidate(estoqueProvider);
 
         AppFeedback.showSuccess(context, 'Venda criada com sucesso!');
       } else {
@@ -1880,6 +1882,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
         // Invalidar providers para atualizar os dados
         ref.invalidate(vendaControllerProvider);
         ref.invalidate(itensVendaProvider(_editingVenda!.id));
+        ref.invalidate(estoqueProvider);
 
         AppFeedback.showSuccess(context, 'Venda atualizada com sucesso!');
       }
@@ -1909,6 +1912,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
         // Invalidar providers para atualizar os dados
         ref.invalidate(vendaControllerProvider);
         ref.invalidate(itensVendaProvider(venda.id));
+        ref.invalidate(estoqueProvider);
 
         AppFeedback.showSuccess(context, 'Venda excluída com sucesso!');
       } catch (e) {

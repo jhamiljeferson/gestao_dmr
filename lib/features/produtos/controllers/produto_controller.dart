@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/produto_model.dart';
 import '../services/produto_service.dart';
+import '../../estoque/controllers/estoque_controller.dart';
 
 final produtoServiceProvider = Provider<ProdutoService>((ref) {
   return ProdutoService();
@@ -14,13 +15,15 @@ final produtosProvider = FutureProvider<List<Produto>>((ref) async {
 final produtoControllerProvider =
     StateNotifierProvider<ProdutoController, AsyncValue<List<Produto>>>((ref) {
       final service = ref.read(produtoServiceProvider);
-      return ProdutoController(service);
+      return ProdutoController(service, ref);
     });
 
 class ProdutoController extends StateNotifier<AsyncValue<List<Produto>>> {
   final ProdutoService _service;
+  final Ref _ref;
 
-  ProdutoController(this._service) : super(const AsyncValue.loading()) {
+  ProdutoController(this._service, this._ref)
+    : super(const AsyncValue.loading()) {
     loadProdutos();
   }
 
@@ -40,6 +43,8 @@ class ProdutoController extends StateNotifier<AsyncValue<List<Produto>>> {
       state.whenData((produtos) {
         state = AsyncValue.data([...produtos, newProduto]);
       });
+      // Invalidar estoque quando um produto for criado
+      _ref.invalidate(estoqueProvider);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }

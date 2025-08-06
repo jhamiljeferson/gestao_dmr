@@ -96,9 +96,46 @@ class VendaService {
           .select()
           .single();
 
-      return Venda.fromJson(response);
+      final novaVenda = Venda.fromJson(response);
+
+      // Nota: A atualização do estoque será feita quando os itens da venda forem criados
+      // através do método createItemVenda
+
+      return novaVenda;
     } catch (e) {
       throw Exception('Erro ao criar venda: $e');
+    }
+  }
+
+  // Método para atualizar estoque quando uma venda é criada
+  Future<void> _atualizarEstoqueVenda(String produtoId, int quantidade) async {
+    try {
+      // Verificar se já existe registro de estoque
+      final estoqueExistente = await _client
+          .from('estoque')
+          .select('quantidade')
+          .eq('produto_id', produtoId)
+          .maybeSingle();
+
+      if (estoqueExistente != null) {
+        // Atualizar estoque existente (diminuir quantidade vendida)
+        int novaQuantidade = estoqueExistente['quantidade'] as int;
+        novaQuantidade -= quantidade;
+
+        await _client
+            .from('estoque')
+            .update({'quantidade': novaQuantidade})
+            .eq('produto_id', produtoId);
+      } else {
+        // Criar novo registro de estoque com quantidade negativa
+        await _client.from('estoque').insert({
+          'produto_id': produtoId,
+          'quantidade': -quantidade,
+        });
+      }
+    } catch (error) {
+      print('Erro ao atualizar estoque da venda: $error');
+      // Não falha a venda se o estoque falhar
     }
   }
 
@@ -172,7 +209,12 @@ class VendaService {
           .select()
           .single();
 
-      return ItemVenda.fromJson(response);
+      final novoItem = ItemVenda.fromJson(response);
+
+      // Atualizar estoque (diminuir quantidade vendida)
+      await _atualizarEstoqueVenda(item.produtoId, vendidos);
+
+      return novoItem;
     } catch (e) {
       throw Exception('Erro ao criar item de venda: $e');
     }
@@ -181,6 +223,15 @@ class VendaService {
   // Atualizar item de venda
   Future<ItemVenda> updateItem(ItemVenda item) async {
     try {
+      // Buscar item atual para calcular diferença no estoque
+      final itemAtual = await _client
+          .from('itens_venda')
+          .select('vendidos')
+          .eq('id', item.id)
+          .single();
+
+      final vendidosAtual = itemAtual['vendidos'] as int;
+
       // Calcular vendidos e subtotal
       final vendidos = ItemVenda.calcularVendidos(
         item.retirada,
@@ -207,7 +258,15 @@ class VendaService {
           .select()
           .single();
 
-      return ItemVenda.fromJson(response);
+      final itemAtualizado = ItemVenda.fromJson(response);
+
+      // Atualizar estoque (diferença entre vendidos antigo e novo)
+      final diferencaVendidos = vendidos - vendidosAtual;
+      if (diferencaVendidos != 0) {
+        await _atualizarEstoqueVenda(item.produtoId, diferencaVendidos);
+      }
+
+      return itemAtualizado;
     } catch (e) {
       throw Exception('Erro ao atualizar item de venda: $e');
     }
@@ -216,9 +275,56 @@ class VendaService {
   // Deletar item de venda
   Future<void> deleteItem(String id) async {
     try {
+      // Buscar item antes de deletar para restaurar estoque
+      final item = await _client
+          .from('itens_venda')
+          .select('produto_id, vendidos')
+          .eq('id', id)
+          .single();
+
       await _client.from('itens_venda').delete().eq('id', id);
+
+      // Restaurar estoque (adicionar quantidade vendida de volta)
+      final produtoId = item['produto_id'] as String;
+      final vendidos = item['vendidos'] as int;
+
+      if (vendidos > 0) {
+        await _restaurarEstoqueVenda(produtoId, vendidos);
+      }
     } catch (e) {
       throw Exception('Erro ao deletar item de venda: $e');
+    }
+  }
+
+  // Método para restaurar estoque quando um item de venda é deletado
+  Future<void> _restaurarEstoqueVenda(String produtoId, int quantidade) async {
+    try {
+      // Verificar se já existe registro de estoque
+      final estoqueExistente = await _client
+          .from('estoque')
+          .select('quantidade')
+          .eq('produto_id', produtoId)
+          .maybeSingle();
+
+      if (estoqueExistente != null) {
+        // Restaurar estoque existente (adicionar quantidade de volta)
+        int novaQuantidade = estoqueExistente['quantidade'] as int;
+        novaQuantidade += quantidade;
+
+        await _client
+            .from('estoque')
+            .update({'quantidade': novaQuantidade})
+            .eq('produto_id', produtoId);
+      } else {
+        // Criar novo registro de estoque com quantidade restaurada
+        await _client.from('estoque').insert({
+          'produto_id': produtoId,
+          'quantidade': quantidade,
+        });
+      }
+    } catch (error) {
+      print('Erro ao restaurar estoque da venda: $error');
+      // Não falha a deleção se o estoque falhar
     }
   }
 

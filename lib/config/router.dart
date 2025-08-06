@@ -9,6 +9,9 @@ import '../features/pontos/views/pontos_view.dart';
 import '../features/vendedores/views/vendedores_view.dart';
 import '../features/vendas/views/vendas_view.dart';
 import '../features/vendas/views/itens_venda_view.dart';
+import '../features/movimentacoes/views/entradas_view.dart';
+import '../features/movimentacoes/views/saidas_view.dart';
+import '../features/estoque/views/estoque_view.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -46,6 +49,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           final vendaId = state.pathParameters['vendaId']!;
           return ItensVendaView(vendaId: vendaId);
         },
+      ),
+      GoRoute(
+        path: '/entradas',
+        builder: (context, state) => const EntradasView(),
+      ),
+      GoRoute(path: '/saidas', builder: (context, state) => const SaidasView()),
+      GoRoute(
+        path: '/estoque',
+        builder: (context, state) => const EstoqueView(),
       ),
       GoRoute(
         path: '/configuracoes',

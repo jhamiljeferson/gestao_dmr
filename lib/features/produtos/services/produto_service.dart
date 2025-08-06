@@ -66,7 +66,56 @@ class ProdutoService {
           .select()
           .single();
 
-      return Produto.fromJson(response);
+      final novoProduto = Produto.fromJson(response);
+
+      // Criar registro de estoque automaticamente
+      try {
+        print('Criando estoque para produto: ${novoProduto.id}');
+
+        // Verificar se já existe estoque para este produto
+        final estoqueExistente = await _client
+            .from('estoque')
+            .select('id')
+            .eq('produto_id', novoProduto.id)
+            .maybeSingle();
+
+        if (estoqueExistente != null) {
+          print(
+            'Estoque já existe para este produto: ${estoqueExistente['id']}',
+          );
+        } else {
+          final estoqueResponse = await _client.from('estoque').insert({
+            'produto_id': novoProduto.id,
+            'quantidade': 0,
+          }).select();
+          print('Estoque criado com sucesso: $estoqueResponse');
+        }
+      } catch (estoqueError) {
+        print('Erro ao criar estoque inicial: $estoqueError');
+        print('Tipo de erro: ${estoqueError.runtimeType}');
+        print('Detalhes do erro: ${estoqueError.toString()}');
+
+        // Tentar criar estoque manualmente se for erro de RLS
+        if (estoqueError.toString().contains('row-level security')) {
+          print('Tentando criar estoque com método alternativo...');
+          try {
+            await _client.rpc(
+              'criar_estoque_manual',
+              params: {
+                'produto_id_param': novoProduto.id,
+                'quantidade_param': 0,
+              },
+            );
+            print('Estoque criado via RPC com sucesso');
+          } catch (rpcError) {
+            print('Erro ao criar estoque via RPC: $rpcError');
+          }
+        }
+
+        // Não falha a criação do produto se o estoque falhar
+      }
+
+      return novoProduto;
     } catch (e) {
       throw Exception('Erro ao criar produto: $e');
     }

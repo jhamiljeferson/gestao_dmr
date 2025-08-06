@@ -8,6 +8,7 @@ class AppColors {
   static const Color greenLight = Color(0xFFE8F5E8);
   static const Color green = Color(0xFF4CAF50);
   static const Color greenDark = Color(0xFF388E3C);
+  static const Color red = Color(0xFFD32F2F);
   static const Color background = Color(0xFFF5F8FA);
   static const Color card = Color(0xFFFFFFFF);
   static const Color textPrimary = Color(0xFF0D1B2A);

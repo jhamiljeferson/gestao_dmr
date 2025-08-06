@@ -38,6 +38,21 @@ const List<SidebarItemWithRoute> sidebarItemsWithRoutes = [
     route: '/vendas',
   ),
   SidebarItemWithRoute(
+    icon: Icons.add_box,
+    label: 'Entradas',
+    route: '/entradas',
+  ),
+  SidebarItemWithRoute(
+    icon: Icons.remove_circle,
+    label: 'Saídas',
+    route: '/saidas',
+  ),
+  SidebarItemWithRoute(
+    icon: Icons.inventory_2,
+    label: 'Estoque',
+    route: '/estoque',
+  ),
+  SidebarItemWithRoute(
     icon: Icons.settings,
     label: 'Configurações',
     route: '/configuracoes',
