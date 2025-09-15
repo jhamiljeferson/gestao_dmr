@@ -82,7 +82,18 @@ class VendaController extends StateNotifier<AsyncValue<List<Venda>>> {
     }
   }
 
+  // Cache para filtros para evitar recarregamentos desnecessários
+  DateTime? _lastFilterDate;
+  String? _lastFilterPonto;
+  String? _lastFilterVendedor;
+
   Future<void> loadVendasByDate(DateTime data) async {
+    // Evitar recarregamento se a data for a mesma
+    if (_lastFilterDate != null && _lastFilterDate!.isAtSameMomentAs(data)) {
+      return;
+    }
+    
+    _lastFilterDate = data;
     state = const AsyncValue.loading();
     try {
       final vendas = await _service.getByDate(data);
@@ -93,6 +104,12 @@ class VendaController extends StateNotifier<AsyncValue<List<Venda>>> {
   }
 
   Future<void> loadVendasByPonto(String pontoId) async {
+    // Evitar recarregamento se o ponto for o mesmo
+    if (_lastFilterPonto == pontoId) {
+      return;
+    }
+    
+    _lastFilterPonto = pontoId;
     state = const AsyncValue.loading();
     try {
       final vendas = await _service.getByPonto(pontoId);
@@ -103,6 +120,12 @@ class VendaController extends StateNotifier<AsyncValue<List<Venda>>> {
   }
 
   Future<void> loadVendasByVendedor(String vendedorId) async {
+    // Evitar recarregamento se o vendedor for o mesmo
+    if (_lastFilterVendedor == vendedorId) {
+      return;
+    }
+    
+    _lastFilterVendedor = vendedorId;
     state = const AsyncValue.loading();
     try {
       final vendas = await _service.getByVendedor(vendedorId);
@@ -116,7 +139,7 @@ class VendaController extends StateNotifier<AsyncValue<List<Venda>>> {
   Future<List<ItemVenda>> getItensVenda(String vendaId) async {
     try {
       return await _service.getItensByVenda(vendaId);
-    } catch (error, stackTrace) {
+    } catch (error) {
       throw error;
     }
   }
@@ -124,6 +147,18 @@ class VendaController extends StateNotifier<AsyncValue<List<Venda>>> {
   Future<void> createItemVenda(ItemVenda item) async {
     try {
       await _service.createItem(item);
+      // Não recarregar toda a lista aqui, apenas invalidar o provider específico
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  // Método otimizado para criar múltiplos itens em lote
+  Future<void> createItensVendaBatch(List<ItemVenda> itens) async {
+    try {
+      // Criar todos os itens em paralelo para melhor performance
+      final futures = itens.map((item) => _service.createItem(item));
+      await Future.wait(futures);
       // Não recarregar toda a lista aqui, apenas invalidar o provider específico
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);

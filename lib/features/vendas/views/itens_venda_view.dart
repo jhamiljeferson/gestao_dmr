@@ -484,9 +484,17 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
     }
   }
 
+  // Cache para evitar buscas repetitivas
+  final Map<String, String> _produtoNomeCache = {};
+
   String _getProdutoNome(String produtoId) {
+    // Verificar cache primeiro
+    if (_produtoNomeCache.containsKey(produtoId)) {
+      return _produtoNomeCache[produtoId]!;
+    }
+
     final produtosState = ref.read(produtoControllerProvider);
-    return produtosState.when(
+    final nome = produtosState.when(
       loading: () => 'Carregando...',
       error: (error, stack) => 'Erro',
       data: (produtos) {
@@ -497,6 +505,10 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
         return '${produto.codigo} - ${produto.nome}';
       },
     );
+    
+    // Armazenar no cache
+    _produtoNomeCache[produtoId] = nome;
+    return nome;
   }
 
   @override

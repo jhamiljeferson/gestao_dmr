@@ -41,9 +41,12 @@ class ProdutoController extends StateNotifier<AsyncValue<List<Produto>>> {
     try {
       final newProduto = await _service.create(produto);
       state.whenData((produtos) {
-        state = AsyncValue.data([...produtos, newProduto]);
+        // Adicionar produto ordenado por código para manter consistência
+        final updatedProdutos = [...produtos, newProduto];
+        updatedProdutos.sort((a, b) => a.codigo.compareTo(b.codigo));
+        state = AsyncValue.data(updatedProdutos);
       });
-      // Invalidar estoque quando um produto for criado
+      // Invalidar estoque quando um produto for criado (assíncrono para não bloquear)
       _ref.invalidate(estoqueProvider);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);

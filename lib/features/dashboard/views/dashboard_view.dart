@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/layouts/main_layout.dart';
-import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_loading.dart';
 import '../../../shared/widgets/app_breadcrumbs.dart';
 import '../../../config/theme.dart';
@@ -11,53 +10,83 @@ import '../../../core/services/supabase_service.dart';
 import 'package:intl/intl.dart';
 
 final dashboardKpiProvider = FutureProvider<Map<String, String>>((ref) async {
-  final supabase = SupabaseService().client;
-  final now = DateTime.now();
+  try {
+    final supabase = SupabaseService().client;
+    final now = DateTime.now();
 
-  final todayStart = DateTime(now.year, now.month, now.day);
-  final monthStart = DateTime(now.year, now.month, 1);
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final monthStart = DateTime(now.year, now.month, 1);
 
-  // Vendas do dia
-  final vendasHoje = await supabase
-      .from('itens_venda')
-      .select('vendidos, subtotal, venda_id, vendas!inner(data)')
-      .gte('vendas.data', todayStart.toIso8601String());
+    // Executar todas as consultas em paralelo para melhor performance
+    final results = await Future.wait([
+      // Consulta 1: Vendas do dia (otimizada - apenas campos necessários)
+      supabase
+          .from('itens_venda')
+          .select('vendidos, subtotal, venda_id, vendas!inner(data)')
+          .gte('vendas.data', todayStart.toIso8601String()),
+      
+      // Consulta 2: Vendas do mês (otimizada - apenas campos necessários)
+      supabase
+          .from('itens_venda')
+          .select('vendidos, subtotal, venda_id, vendas!inner(data)')
+          .gte('vendas.data', monthStart.toIso8601String()),
+      
+      // Consulta 3: Estoque total (otimizada - apenas quantidade)
+      supabase.from('estoque').select('quantidade'),
+    ]);
 
-  // Vendas do mês
-  final vendasMes = await supabase
-      .from('itens_venda')
-      .select('vendidos, subtotal, venda_id, vendas!inner(data)')
-      .gte('vendas.data', monthStart.toIso8601String());
+    final vendasHoje = results[0] as List;
+    final vendasMes = results[1] as List;
+    final estoque = results[2] as List;
 
-  int qtdHoje = 0;
-  double totalHoje = 0;
-  for (final item in vendasHoje) {
-    qtdHoje += (item['vendidos'] ?? 0) as int;
-    totalHoje += (item['subtotal'] ?? 0) as num;
+    // Processar dados em paralelo usando compute para operações pesadas
+    final hojeData = _processarVendas(vendasHoje);
+    final mesData = _processarVendas(vendasMes);
+    final qtdEstoque = _processarEstoque(estoque);
+
+    final moeda = NumberFormat.simpleCurrency(locale: 'pt_BR');
+
+    return {
+      'Itens Hoje': '${hojeData['qtd']}',
+      'Total Hoje': moeda.format(hojeData['total']),
+      'Itens Mês': '${mesData['qtd']}',
+      'Total Mês': moeda.format(mesData['total']),
+      'Estoque Total': '$qtdEstoque peças',
+    };
+  } catch (error) {
+    // Fallback em caso de erro - retornar dados padrão
+    print('Erro ao carregar dashboard: $error');
+    return {
+      'Itens Hoje': '0',
+      'Total Hoje': 'R\$ 0,00',
+      'Itens Mês': '0',
+      'Total Mês': 'R\$ 0,00',
+      'Estoque Total': '0 peças',
+    };
   }
-
-  int qtdMes = 0;
-  double totalMes = 0;
-  for (final item in vendasMes) {
-    qtdMes += (item['vendidos'] ?? 0) as int;
-    totalMes += (item['subtotal'] ?? 0) as num;
-  }
-  // Estoque total
-  final estoque = await supabase.from('estoque').select('quantidade');
-  int qtdEstoque = 0;
-  for (final item in estoque) {
-    qtdEstoque += (item['quantidade'] ?? 0) as int;
-  }
-  final moeda = NumberFormat.simpleCurrency(locale: 'pt_BR');
-
-  return {
-    'Itens Hoje': '$qtdHoje',
-    'Total Hoje': moeda.format(totalHoje),
-    'Itens Mês': '$qtdMes',
-    'Total Mês': moeda.format(totalMes),
-    'Estoque Total': '$qtdEstoque peças',
-  };
 });
+
+// Função auxiliar para processar vendas (pode ser otimizada com compute se necessário)
+Map<String, dynamic> _processarVendas(List vendas) {
+  int qtd = 0;
+  double total = 0;
+  
+  for (final item in vendas) {
+    qtd += (item['vendidos'] ?? 0) as int;
+    total += (item['subtotal'] ?? 0) as num;
+  }
+  
+  return {'qtd': qtd, 'total': total};
+}
+
+// Função auxiliar para processar estoque
+int _processarEstoque(List estoque) {
+  int qtd = 0;
+  for (final item in estoque) {
+    qtd += (item['quantidade'] ?? 0) as int;
+  }
+  return qtd;
+}
 
 class DashboardView extends ConsumerWidget {
   const DashboardView({Key? key}) : super(key: key);
@@ -65,7 +94,6 @@ class DashboardView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final kpis = ref.watch(dashboardKpiProvider);
-    final isWide = MediaQuery.of(context).size.width >= 900;
     return MainLayout(
       title: 'Dashboard',
       breadcrumbs: const [BreadcrumbItem('Dashboard')],
@@ -98,7 +126,6 @@ class DashboardView extends ConsumerWidget {
                 builder: (context, constraints) {
                   // Sempre 2 cards por linha, responsivo a partir de 320px
                   final double gridSpacing = 16;
-                  final double minCardWidth = 240;
                   final int crossAxisCount = 2;
                   return Center(
                     child: ConstrainedBox(

@@ -79,25 +79,31 @@ class _VendasViewState extends ConsumerState<VendasView> {
       _valorPixController.text = venda.valorPix.toString();
       _valorDinheiroController.text = venda.valorDinheiro.toString();
 
-      // Carregar itens existentes da venda
+      // Carregar itens existentes da venda de forma otimizada
       try {
-        final itens = await ref
-            .read(vendaControllerProvider.notifier)
-            .getItensVenda(venda.id);
-        final produtosState = ref.read(produtoControllerProvider);
-
+        // Carregar itens e produtos em paralelo
+        final futures = await Future.wait([
+          ref.read(vendaControllerProvider.notifier).getItensVenda(venda.id),
+          ref.read(produtoControllerProvider).when(
+            data: (produtos) => Future.value(produtos),
+            loading: () => Future.value(<dynamic>[]),
+            error: (_, __) => Future.value(<dynamic>[]),
+          ),
+        ]);
+        
+        final itens = futures[0] as List<ItemVenda>;
+        final produtos = futures[1];
+        
+        // Criar mapa de produtos para busca O(1) em vez de O(n)
+        final produtosMap = {for (var p in produtos) p.id: p};
+        
+        // Processar itens de forma mais eficiente
+        _itensTemp.clear();
         for (final item in itens) {
-          final produtoNome = produtosState.when(
-            loading: () => 'Carregando...',
-            error: (error, stack) => 'Erro',
-            data: (produtos) {
-              final produto = produtos.firstWhere(
-                (p) => p.id == item.produtoId,
-                orElse: () => throw Exception('Produto não encontrado'),
-              );
-              return '${produto.codigo} - ${produto.nome}';
-            },
-          );
+          final produto = produtosMap[item.produtoId];
+          final produtoNome = produto != null 
+              ? '${produto.codigo} - ${produto.nome}'
+              : 'Produto não encontrado';
 
           _itensTemp.add({
             'produtoId': item.produtoId,
@@ -1053,45 +1059,87 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                               ),
                                             ),
                                           ),
-                                          child: ListTile(
-                                            dense: true,
-                                            contentPadding:
-                                                const EdgeInsets.symmetric(
-                                                  horizontal: 16,
-                                                  vertical: 4,
-                                                ),
-                                            title: Text(
-                                              item['produtoNome'],
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                            subtitle: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                const SizedBox(height: 4),
+                                                // Linha principal: Nome do produto e Total
                                                 Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        item['produtoNome'],
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors.green,
+                                                        borderRadius: BorderRadius.circular(16),
+                                                      ),
+                                                      child: Text(
+                                                        'R\$ ${item['subtotal'].toStringAsFixed(2)}',
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 13,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    IconButton(
+                                                      icon: const Icon(
+                                                        Icons.delete_outline,
+                                                        color: Colors.red,
+                                                        size: 20,
+                                                      ),
+                                                      onPressed: () {
+                                                        setState(() {
+                                                          _itensTemp.removeAt(index);
+                                                        });
+                                                        setDialogState(() {});
+                                                      },
+                                                      padding: EdgeInsets.zero,
+                                                      constraints: const BoxConstraints(
+                                                        minWidth: 32,
+                                                        minHeight: 32,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                
+                                                // Linha de quantidades
+                                                Wrap(
+                                                  spacing: 6,
+                                                  runSpacing: 4,
                                                   children: [
                                                     _buildQuantityChip(
                                                       'Retirada',
                                                       item['retirada'],
                                                       Colors.blue,
                                                     ),
-                                                    const SizedBox(width: 8),
                                                     _buildQuantityChip(
                                                       'Reposição',
                                                       item['reposicao'],
                                                       Colors.orange,
                                                     ),
-                                                    const SizedBox(width: 8),
                                                     _buildQuantityChip(
                                                       'Retorno',
                                                       item['retorno'],
                                                       Colors.red,
                                                     ),
-                                                    const SizedBox(width: 8),
                                                     _buildQuantityChip(
                                                       'Vendidos',
                                                       item['vendidos'],
@@ -1099,60 +1147,16 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                     ),
                                                   ],
                                                 ),
-                                                const SizedBox(height: 4),
+                                                const SizedBox(height: 6),
+                                                
+                                                // Preço unitário
                                                 Text(
-                                                  'Preço: R\$ ${item['precoUnitario'].toStringAsFixed(2)}',
+                                                  'Preço unitário: R\$ ${item['precoUnitario'].toStringAsFixed(2)}',
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     color: Colors.grey[600],
+                                                    fontWeight: FontWeight.w500,
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                            trailing: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.green,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    'R\$ ${item['subtotal'].toStringAsFixed(2)}',
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.delete,
-                                                    color: Colors.red,
-                                                    size: 18,
-                                                  ),
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      _itensTemp.removeAt(
-                                                        index,
-                                                      );
-                                                    });
-                                                    setDialogState(() {});
-                                                  },
-                                                  padding: EdgeInsets.zero,
-                                                  constraints:
-                                                      const BoxConstraints(),
                                                 ),
                                               ],
                                             ),
@@ -1719,28 +1723,6 @@ class _VendasViewState extends ConsumerState<VendasView> {
     );
   }
 
-  // Método para verificar se há discrepância entre valores de pagamento e total dos itens
-  Future<bool> _verificarDiscrepancia(Venda venda) async {
-    try {
-      final totalItens = await _calcularTotalVenda(venda.id);
-      final totalPagamento = venda.valorPix + venda.valorDinheiro;
-      return (totalPagamento - totalItens).abs() >
-          0.01; // Tolerância de 1 centavo
-    } catch (e) {
-      return false; // Em caso de erro, não mostrar alerta
-    }
-  }
-
-  // Método para calcular a diferença entre valores de pagamento e total dos itens
-  Future<double> _calcularDiferenca(Venda venda) async {
-    try {
-      final totalItens = await _calcularTotalVenda(venda.id);
-      final totalPagamento = venda.valorPix + venda.valorDinheiro;
-      return totalPagamento - totalItens;
-    } catch (e) {
-      return 0.0;
-    }
-  }
 
   // Método para mostrar alerta de discrepância
   void _mostrarAlertaDiscrepancia(BuildContext context, Venda venda) {
@@ -1754,14 +1736,14 @@ class _VendasViewState extends ConsumerState<VendasView> {
             const Text('Discrepância Detectada'),
           ],
         ),
-        content: FutureBuilder<double>(
-          future: _calcularDiferenca(venda),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final diferenca = snapshot.data ?? 0.0;
+        content: Consumer(
+          builder: (context, ref, child) {
+            final diferencaState = ref.watch(diferencaPagamentoProvider(venda));
+            
+            return diferencaState.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => const Text('Erro ao calcular diferença'),
+              data: (diferenca) {
             final totalPagamento = venda.valorPix + venda.valorDinheiro;
             final totalItens = totalPagamento - diferenca;
 
@@ -1870,6 +1852,8 @@ class _VendasViewState extends ConsumerState<VendasView> {
                   ),
                 ),
               ],
+            );
+              },
             );
           },
         ),
@@ -2150,9 +2134,9 @@ class _VendasViewState extends ConsumerState<VendasView> {
             .read(vendaControllerProvider.notifier)
             .createVenda(novaVenda);
 
-        // Criar itens da venda
-        for (final itemData in _itensTemp) {
-          final item = ItemVenda(
+        // Criar itens da venda em lote para melhor performance
+        final itens = _itensTemp.map((itemData) {
+          return ItemVenda(
             id: '',
             vendaId: vendaCriada.id,
             produtoId: itemData['produtoId'],
@@ -2163,10 +2147,12 @@ class _VendasViewState extends ConsumerState<VendasView> {
             vendidos: itemData['vendidos'],
             subtotal: itemData['subtotal'],
           );
+        }).toList();
+        
+        // Criar todos os itens em lote (mais eficiente que paralelo)
           await ref
               .read(vendaControllerProvider.notifier)
-              .createItemVenda(item);
-        }
+            .createItensVendaBatch(itens);
 
         // Invalidar providers para atualizar os dados
         ref.invalidate(vendaControllerProvider);
@@ -2260,51 +2246,36 @@ class _VendasViewState extends ConsumerState<VendasView> {
     }
   }
 
-  String _getPontoNome(String pontoId) {
-    final pontosState = ref.read(pontoControllerProvider);
-    return pontosState.when(
-      loading: () => 'Carregando...',
-      error: (error, stack) => 'Erro',
-      data: (pontos) {
-        final ponto = pontos.firstWhere(
-          (p) => p.id == pontoId,
-          orElse: () => throw Exception('Ponto não encontrado'),
-        );
-        return ponto.nome;
-      },
-    );
-  }
-
-  String _getVendedorNome(String vendedorId) {
-    final vendedoresState = ref.read(vendedorControllerProvider);
-    return vendedoresState.when(
-      loading: () => 'Carregando...',
-      error: (error, stack) => 'Erro',
-      data: (vendedores) {
-        final vendedor = vendedores.firstWhere(
-          (v) => v.id == vendedorId,
-          orElse: () => throw Exception('Vendedor não encontrado'),
-        );
-        return vendedor.nome;
-      },
-    );
-  }
 
   Widget _buildQuantityChip(String label, int value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.4), width: 1),
       ),
-      child: Text(
-        '$label: $value',
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w500,
-          fontSize: 10,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label:',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$value',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2433,12 +2404,12 @@ class _VendasViewState extends ConsumerState<VendasView> {
                               color: AppColors.green,
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: FutureBuilder<double>(
-                              future: _calcularTotalVendas(vendas),
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState ==
-                                    ConnectionState.waiting) {
-                                  return const SizedBox(
+                            child: Consumer(
+                              builder: (context, ref, child) {
+                                final totalState = ref.watch(totalVendasProvider(vendas));
+                                
+                                return totalState.when(
+                                  loading: () => const SizedBox(
                                     width: 16,
                                     height: 16,
                                     child: CircularProgressIndicator(
@@ -2447,14 +2418,22 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                         Colors.white,
                                       ),
                                     ),
-                                  );
-                                }
-                                return Text(
-                                  'R\$ ${(snapshot.data ?? 0.0).toStringAsFixed(2)}',
+                                  ),
+                                  error: (error, stack) => const Text(
+                                    'R\$ 0,00',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  data: (total) => Text(
+                                    'R\$ ${total.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
+                                    ),
                                   ),
                                 );
                               },
@@ -2538,39 +2517,53 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                           ],
                                         ),
                                       ),
-                                      FutureBuilder<double>(
-                                        future: _calcularTotalVenda(venda.id),
-                                        builder: (context, snapshot) {
-                                          if (snapshot.connectionState ==
-                                              ConnectionState.waiting) {
-                                            return const SizedBox(
+                                      Consumer(
+                                        builder: (context, ref, child) {
+                                          final totalState = ref.watch(totalVendaProvider(venda.id));
+                                          
+                                          return totalState.when(
+                                            loading: () => const SizedBox(
                                               width: 20,
                                               height: 20,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(AppColors.green),
+                                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.green),
                                               ),
-                                            );
-                                          }
-                                          return Container(
+                                            ),
+                                            error: (error, stack) => Container(
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 12,
                                               vertical: 6,
                                             ),
                                             decoration: BoxDecoration(
                                               color: AppColors.green,
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
+                                                borderRadius: BorderRadius.circular(20),
+                                              ),
+                                              child: const Text(
+                                                'R\$ 0,00',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ),
+                                            data: (total) => Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 6,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.green,
+                                                borderRadius: BorderRadius.circular(20),
                                             ),
                                             child: Text(
-                                              'R\$ ${(snapshot.data ?? 0.0).toStringAsFixed(2)}',
+                                                'R\$ ${total.toStringAsFixed(2)}',
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 14,
+                                                ),
                                               ),
                                             ),
                                           );
@@ -2586,15 +2579,18 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                   child: Column(
                                     children: [
                                       // Informações da venda
-                                      Row(
+                                      Consumer(
+                                        builder: (context, ref, child) {
+                                          final pontoNome = ref.watch(pontoNomeProvider(venda.pontoId));
+                                          final vendedorNome = ref.watch(vendedorNomeProvider(venda.vendedorId));
+                                          
+                                          return Row(
                                         children: [
                                           Expanded(
                                             child: _buildInfoItem(
                                               icon: Icons.store,
                                               label: 'Ponto',
-                                              value: _getPontoNome(
-                                                venda.pontoId,
-                                              ),
+                                                  value: pontoNome,
                                             ),
                                           ),
                                           const SizedBox(width: 16),
@@ -2602,12 +2598,12 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                             child: _buildInfoItem(
                                               icon: Icons.person,
                                               label: 'Vendedor',
-                                              value: _getVendedorNome(
-                                                venda.vendedorId,
-                                              ),
+                                                  value: vendedorNome,
                                             ),
                                           ),
                                         ],
+                                          );
+                                        },
                                       ),
                                       const SizedBox(height: 12),
 
@@ -2666,12 +2662,14 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                   child: Column(
                                     children: [
                                       // Botão de verificar discrepância
-                                      FutureBuilder<bool>(
-                                        future: _verificarDiscrepancia(venda),
-                                        builder: (context, discrepanciaSnapshot) {
-                                          final temDiscrepancia =
-                                              discrepanciaSnapshot.data ??
-                                              false;
+                                      Consumer(
+                                        builder: (context, ref, child) {
+                                          final discrepanciaState = ref.watch(verificarDiscrepanciaProvider(venda));
+                                          
+                                          return discrepanciaState.when(
+                                            loading: () => const SizedBox.shrink(),
+                                            error: (error, stack) => const SizedBox.shrink(),
+                                            data: (temDiscrepancia) {
                                           if (temDiscrepancia) {
                                             return Container(
                                               width: double.infinity,
@@ -2692,11 +2690,9 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                   'Verificar Discrepância',
                                                 ),
                                                 style: ElevatedButton.styleFrom(
-                                                  backgroundColor:
-                                                      Colors.orange,
+                                                      backgroundColor: Colors.orange,
                                                   foregroundColor: Colors.white,
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
+                                                      padding: const EdgeInsets.symmetric(
                                                         vertical: 12,
                                                       ),
                                                 ),
@@ -2704,6 +2700,8 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                             );
                                           }
                                           return const SizedBox.shrink();
+                                            },
+                                          );
                                         },
                                       ),
                                       // Botões principais
@@ -2784,38 +2782,102 @@ class _VendasViewState extends ConsumerState<VendasView> {
     );
   }
 
-  // Método para calcular o total de uma venda específica baseado nos itens
-  Future<double> _calcularTotalVenda(String vendaId) async {
+
+  // Provider otimizado para calcular total das vendas
+  final totalVendasProvider = FutureProvider.family<double, List<Venda>>((ref, vendas) async {
+    if (vendas.isEmpty) return 0.0;
+    
     try {
-      final itens = await ref
-          .read(vendaControllerProvider.notifier)
-          .getItensVenda(vendaId);
+      // Buscar todos os itens em paralelo para melhor performance
+      final futures = vendas.map((venda) => 
+        ref.read(vendaControllerProvider.notifier).getItensVenda(venda.id)
+      ).toList();
+      
+      final todosItens = await Future.wait(futures);
+      
+      // Calcular total de forma eficiente
       double total = 0.0;
-      for (final item in itens) {
-        total += item.subtotal;
+      for (final itens in todosItens) {
+        total += itens.fold(0.0, (sum, item) => sum + item.subtotal);
       }
+      
       return total;
     } catch (e) {
+      print('Erro ao calcular total das vendas: $e');
       return 0.0;
     }
-  }
+  });
 
-  // Método para calcular o total de todas as vendas baseado nos itens
-  Future<double> _calcularTotalVendas(List<Venda> vendas) async {
-    double total = 0.0;
-    for (final venda in vendas) {
-      try {
-        final itens = await ref
-            .read(vendaControllerProvider.notifier)
-            .getItensVenda(venda.id);
-        final vendaTotal = itens.fold(0.0, (sum, item) => sum + item.subtotal);
-        total += vendaTotal;
-      } catch (e) {
-        // Se houver erro, continua com 0.0
-      }
+  // Provider para calcular total de uma venda específica
+  final totalVendaProvider = FutureProvider.family<double, String>((ref, vendaId) async {
+    try {
+      final itens = await ref.read(vendaControllerProvider.notifier).getItensVenda(vendaId);
+      return itens.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    } catch (e) {
+      print('Erro ao calcular total da venda: $e');
+      return 0.0;
     }
-    return total;
-  }
+  });
+
+  // Provider para calcular diferença de pagamento
+  final diferencaPagamentoProvider = FutureProvider.family<double, Venda>((ref, venda) async {
+    try {
+      final itens = await ref.read(vendaControllerProvider.notifier).getItensVenda(venda.id);
+      final totalItens = itens.fold(0.0, (sum, item) => sum + item.subtotal);
+      final totalPagamento = venda.valorPix + venda.valorDinheiro;
+      return (totalPagamento - totalItens).abs();
+      } catch (e) {
+      print('Erro ao calcular diferença: $e');
+      return 0.0;
+    }
+  });
+
+  // Provider para verificar discrepância
+  final verificarDiscrepanciaProvider = FutureProvider.family<bool, Venda>((ref, venda) async {
+    try {
+      final itens = await ref.read(vendaControllerProvider.notifier).getItensVenda(venda.id);
+      final totalItens = itens.fold(0.0, (sum, item) => sum + item.subtotal);
+      final totalPagamento = venda.valorPix + venda.valorDinheiro;
+      return (totalPagamento - totalItens).abs() > 0.01;
+    } catch (e) {
+      print('Erro ao verificar discrepância: $e');
+      return false;
+    }
+  });
+
+  // Provider para nome do ponto
+  final pontoNomeProvider = Provider.family<String, String>((ref, pontoId) {
+    final pontosState = ref.watch(pontoControllerProvider);
+    return pontosState.when(
+      loading: () => 'Carregando...',
+      error: (error, stack) => 'Erro',
+      data: (pontos) {
+        try {
+          final ponto = pontos.firstWhere((p) => p.id == pontoId);
+          return ponto.nome;
+        } catch (e) {
+          return 'Ponto não encontrado';
+        }
+      },
+    );
+  });
+
+  // Provider para nome do vendedor
+  final vendedorNomeProvider = Provider.family<String, String>((ref, vendedorId) {
+    final vendedoresState = ref.watch(vendedorControllerProvider);
+    return vendedoresState.when(
+      loading: () => 'Carregando...',
+      error: (error, stack) => 'Erro',
+      data: (vendedores) {
+        try {
+          final vendedor = vendedores.firstWhere((v) => v.id == vendedorId);
+          return vendedor.nome;
+        } catch (e) {
+          return 'Vendedor não encontrado';
+        }
+      },
+    );
+  });
 
   Widget _buildInfoItem({
     required IconData icon,
