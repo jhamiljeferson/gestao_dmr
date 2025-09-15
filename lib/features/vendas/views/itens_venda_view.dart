@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/layouts/main_layout.dart';
-import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_loading.dart';
 import '../../../shared/widgets/app_breadcrumbs.dart';
 import '../../../shared/widgets/app_text_field.dart';
@@ -14,7 +13,6 @@ import '../models/item_venda_model.dart';
 import '../controllers/venda_controller.dart';
 import '../../produtos/controllers/produto_controller.dart';
 import '../../estoque/controllers/estoque_controller.dart';
-import 'package:intl/intl.dart';
 
 class ItensVendaView extends ConsumerStatefulWidget {
   final String vendaId;
@@ -31,10 +29,12 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
   final _reposicaoController = TextEditingController();
   final _retornoController = TextEditingController();
   final _precoUnitarioController = TextEditingController();
+  final _searchController = TextEditingController();
 
   bool _isLoading = false;
   ItemVenda? _editingItem;
   String? _selectedProdutoId;
+  String _searchQuery = '';
 
   @override
   void dispose() {
@@ -42,6 +42,7 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
     _reposicaoController.dispose();
     _retornoController.dispose();
     _precoUnitarioController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -193,10 +194,7 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
                                 controller: _reposicaoController,
                                 keyboardType: TextInputType.number,
                                 validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Informe a reposição';
-                                  }
-                                  if (int.tryParse(value) == null) {
+                                  if (value != null && value.isNotEmpty && int.tryParse(value) == null) {
                                     return 'Valor deve ser um número';
                                   }
                                   return null;
@@ -271,9 +269,20 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
                           backgroundColor: AppColors.blue,
                           foregroundColor: Colors.white,
                         ),
-                        child: Text(
-                          _editingItem == null ? 'Adicionar' : 'Salvar',
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                _editingItem == null ? 'Adicionar' : 'Salvar',
+                              ),
                       ),
                     ),
                   ],
@@ -287,13 +296,15 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
   }
 
   Future<void> _saveItem() async {
+    if (_isLoading) return; // Previne múltiplas execuções simultâneas
+    
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
       final retirada = int.parse(_retiradaController.text);
-      final reposicao = int.parse(_reposicaoController.text);
+      final reposicao = _reposicaoController.text.isEmpty ? 0 : int.parse(_reposicaoController.text);
       final retorno = int.parse(_retornoController.text);
       final precoUnitario = double.parse(_precoUnitarioController.text);
       final vendidos = ItemVenda.calcularVendidos(retirada, reposicao, retorno);
@@ -642,12 +653,48 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Campo de pesquisa
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Pesquisar por código do produto...',
+                          prefixIcon: const Icon(Icons.search, color: AppColors.blue),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, color: Colors.grey),
+                                  onPressed: () {
+                                    setState(() {
+                                      _searchController.clear();
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value.toLowerCase();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
                     // Lista de itens
                     Expanded(
                       child: ListView.builder(
-                        itemCount: itens.length,
+                        itemCount: _getFilteredItens(itens).length,
                         itemBuilder: (context, index) {
-                          final item = itens[index];
+                          final item = _getFilteredItens(itens)[index];
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             decoration: BoxDecoration(
@@ -674,9 +721,7 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
                                           color: AppColors.green,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
+                                          borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: const Icon(
                                           Icons.inventory,
@@ -687,8 +732,7 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               _getProdutoNome(item.produtoId),
@@ -696,7 +740,10 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 16,
                                               ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
+                                            const SizedBox(height: 4),
                                             Text(
                                               'Preço: R\$ ${item.precoUnitario.toStringAsFixed(2)}',
                                               style: TextStyle(
@@ -707,25 +754,38 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
                                           ],
                                         ),
                                       ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.green,
-                                          borderRadius: BorderRadius.circular(
-                                            20,
+                                      const SizedBox(width: 8),
+                                      // Valor total em uma linha separada para evitar sobreposição
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            'Total',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
                                           ),
-                                        ),
-                                        child: Text(
-                                          'R\$ ${item.subtotal.toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
+                                          const SizedBox(height: 2),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.green,
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                              'R\$ ${item.subtotal.toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
                                           ),
-                                        ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -816,6 +876,19 @@ class _ItensVendaViewState extends ConsumerState<ItensVendaView> {
         ),
       ),
     );
+  }
+
+  List<ItemVenda> _getFilteredItens(List<ItemVenda> itens) {
+    if (_searchQuery.isEmpty) {
+      return itens;
+    }
+    
+    return itens.where((item) {
+      final produtoNome = _getProdutoNome(item.produtoId).toLowerCase();
+      // Pesquisar por nome do produto ou código
+      return produtoNome.contains(_searchQuery) || 
+             produtoNome.split(' - ').first.contains(_searchQuery);
+    }).toList();
   }
 
   Widget _buildQuantityInfo({

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/layouts/main_layout.dart';
-import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_loading.dart';
 import '../../../shared/widgets/app_breadcrumbs.dart';
 import '../../../shared/widgets/app_text_field.dart';
@@ -601,18 +600,18 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                             ),
                                             padding: const EdgeInsets.all(16),
                                             decoration: BoxDecoration(
-                                              color: Colors.red.withOpacity(
+                                              color: Colors.orange.withOpacity(
                                                 0.1,
                                               ),
                                               borderRadius:
                                                   BorderRadius.circular(8),
                                               border: Border.all(
-                                                color: Colors.red,
+                                                color: Colors.orange,
                                                 width: 2,
                                               ),
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: Colors.red.withOpacity(
+                                                  color: Colors.orange.withOpacity(
                                                     0.3,
                                                   ),
                                                   blurRadius: 8,
@@ -629,14 +628,14 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                     Icon(
                                                       Icons
                                                           .warning_amber_rounded,
-                                                      color: Colors.red,
+                                                      color: Colors.orange,
                                                       size: 24,
                                                     ),
                                                     const SizedBox(width: 8),
                                                     Text(
-                                                      'ALERTA: Valores Incorretos!',
+                                                      'ATENÇÃO: Valores Diferentes',
                                                       style: TextStyle(
-                                                        color: Colors.red,
+                                                        color: Colors.orange,
                                                         fontWeight:
                                                             FontWeight.bold,
                                                         fontSize: 14,
@@ -646,9 +645,9 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'A soma dos valores de pagamento deve ser igual ao total dos itens:',
+                                                  'Os valores de pagamento são diferentes do total dos itens:',
                                                   style: TextStyle(
-                                                    color: Colors.red[700],
+                                                    color: Colors.orange[700],
                                                     fontSize: 12,
                                                   ),
                                                 ),
@@ -709,7 +708,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                       ),
                                                       Divider(
                                                         height: 8,
-                                                        color: Colors.red,
+                                                        color: Colors.orange,
                                                       ),
                                                       Row(
                                                         mainAxisAlignment:
@@ -732,7 +731,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                               fontWeight:
                                                                   FontWeight
                                                                       .bold,
-                                                              color: Colors.red,
+                                                              color: Colors.orange,
                                                             ),
                                                           ),
                                                         ],
@@ -786,7 +785,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                               fontWeight:
                                                                   FontWeight
                                                                       .bold,
-                                                              color: Colors.red,
+                                                              color: Colors.orange,
                                                             ),
                                                           ),
                                                         ],
@@ -796,9 +795,9 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'Corrija os valores de pagamento para que a soma seja igual ao total dos itens.',
+                                                  'A venda será salva mesmo com essa diferença. Você pode continuar ou corrigir os valores.',
                                                   style: TextStyle(
-                                                    color: Colors.red[700],
+                                                    color: Colors.orange[700],
                                                     fontSize: 11,
                                                     fontStyle: FontStyle.italic,
                                                   ),
@@ -919,7 +918,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                           ),
                                         ),
                                         Text(
-                                          '${_itensTemp.length} itens adicionados',
+                                          '${_getItensOrdenados().length} itens adicionados',
                                           style: TextStyle(
                                             color: AppColors.green,
                                             fontSize: 12,
@@ -1027,7 +1026,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            'Itens Adicionados (${_itensTemp.length})',
+                                            'Itens Adicionados (${_getItensOrdenados().length})',
                                             style: TextStyle(
                                               fontWeight: FontWeight.w500,
                                               color: AppColors.blue,
@@ -1042,9 +1041,9 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                       shrinkWrap: true,
                                       physics:
                                           const NeverScrollableScrollPhysics(),
-                                      itemCount: _itensTemp.length,
+                                      itemCount: _getItensOrdenados().length,
                                       itemBuilder: (context, index) {
-                                        final item = _itensTemp[index];
+                                        final item = _getItensOrdenados()[index];
                                         return Container(
                                           decoration: BoxDecoration(
                                             border: Border(
@@ -1260,7 +1259,18 @@ class _VendasViewState extends ConsumerState<VendasView> {
                               backgroundColor: AppColors.blue,
                               foregroundColor: Colors.white,
                             ),
-                            child: const Text('Salvar'),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : const Text('Salvar'),
                           ),
                         ),
                       ],
@@ -1405,10 +1415,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                       controller: _reposicaoController,
                                       keyboardType: TextInputType.number,
                                       validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Informe a reposição';
-                                        }
-                                        if (int.tryParse(value) == null) {
+                                        if (value != null && value.isNotEmpty && int.tryParse(value) == null) {
                                           return 'Valor deve ser um número';
                                         }
                                         return null;
@@ -1457,10 +1464,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                                     controller: _reposicaoController,
                                     keyboardType: TextInputType.number,
                                     validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Informe a reposição';
-                                      }
-                                      if (int.tryParse(value) == null) {
+                                      if (value != null && value.isNotEmpty && int.tryParse(value) == null) {
                                         return 'Valor deve ser um número';
                                       }
                                       return null;
@@ -1552,7 +1556,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
     if (!_itemFormKey.currentState!.validate()) return;
 
     final retirada = int.parse(_retiradaController.text);
-    final reposicao = int.parse(_reposicaoController.text);
+    final reposicao = _reposicaoController.text.isEmpty ? 0 : int.parse(_reposicaoController.text);
     final retorno = int.parse(_retornoController.text);
     final precoUnitario = double.parse(_precoUnitarioController.text);
     final vendidos = ItemVenda.calcularVendidos(retirada, reposicao, retorno);
@@ -1693,6 +1697,18 @@ class _VendasViewState extends ConsumerState<VendasView> {
 
     // Forçar rebuild do dialog para mostrar o item adicionado
     setDialogState(() {});
+  }
+
+  // Método para obter itens ordenados em ordem decrescente por código
+  List<Map<String, dynamic>> _getItensOrdenados() {
+    final itensOrdenados = List<Map<String, dynamic>>.from(_itensTemp);
+    itensOrdenados.sort((a, b) {
+      // Extrair código do nome do produto (formato: "código - nome")
+      final codigoA = int.tryParse(a['produtoNome'].toString().split(' - ').first) ?? 0;
+      final codigoB = int.tryParse(b['produtoNome'].toString().split(' - ').first) ?? 0;
+      return codigoB.compareTo(codigoA); // Ordem decrescente
+    });
+    return itensOrdenados;
   }
 
   // Método para calcular o total dos itens no formulário
@@ -1879,6 +1895,8 @@ class _VendasViewState extends ConsumerState<VendasView> {
   }
 
   Future<void> _saveVenda() async {
+    if (_isLoading) return; // Previne múltiplas execuções simultâneas
+    
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -1896,15 +1914,15 @@ class _VendasViewState extends ConsumerState<VendasView> {
       final totalPagamento = valorPix + valorDinheiro;
       if ((totalPagamento - totalItens).abs() > 0.01) {
         // Tolerância de 1 centavo
-        // Mostrar alerta detalhado com os valores
+        // Mostrar alerta informativo com os valores (não bloqueia o salvamento)
         await showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Row(
               children: [
-                Icon(Icons.error, color: Colors.red),
+                Icon(Icons.warning_amber_rounded, color: Colors.orange),
                 SizedBox(width: 8),
-                Text('Valores Incorretos'),
+                Text('Atenção: Valores Diferentes'),
               ],
             ),
             content: Column(
@@ -1912,16 +1930,16 @@ class _VendasViewState extends ConsumerState<VendasView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'A soma dos valores de pagamento deve ser igual ao total dos itens:',
+                  'Os valores de pagamento são diferentes do total dos itens:',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: Colors.orange.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red),
+                    border: Border.all(color: Colors.orange),
                   ),
                   child: Column(
                     children: [
@@ -1946,7 +1964,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                           Text('R\$ ${valorDinheiro.toStringAsFixed(2)}'),
                         ],
                       ),
-                      const Divider(height: 16, color: Colors.red),
+                      const Divider(height: 16, color: Colors.orange),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -1968,7 +1986,7 @@ class _VendasViewState extends ConsumerState<VendasView> {
                           Text('R\$ ${totalItens.toStringAsFixed(2)}'),
                         ],
                       ),
-                      const Divider(height: 16, color: Colors.red),
+                      const Divider(height: 16, color: Colors.orange),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -1976,14 +1994,14 @@ class _VendasViewState extends ConsumerState<VendasView> {
                             'Diferença:',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Colors.red,
+                              color: Colors.orange,
                             ),
                           ),
                           Text(
                             'R\$ ${(totalPagamento - totalItens).abs().toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Colors.red,
+                              color: Colors.orange,
                             ),
                           ),
                         ],
@@ -1993,25 +2011,28 @@ class _VendasViewState extends ConsumerState<VendasView> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Corrija os valores de PIX e/ou Dinheiro para que a soma seja igual ao total dos itens.',
+                  'A venda será salva mesmo com essa diferença. Você pode continuar ou corrigir os valores.',
                   style: TextStyle(fontSize: 14),
                 ),
               ],
             ),
             actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Corrigir Valores'),
+              ),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: Colors.orange,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('OK'),
+                child: const Text('Continuar Mesmo Assim'),
               ),
             ],
           ),
         );
-        setState(() => _isLoading = false);
-        return;
+        // Não retorna aqui - continua com o salvamento
       }
 
       // Verificar estoque antes de salvar a venda

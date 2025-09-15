@@ -8,7 +8,7 @@ class ProdutoService {
   // Buscar todos os produtos
   Future<List<Produto>> getAll() async {
     try {
-      final response = await _client.from('produtos').select().order('nome');
+      final response = await _client.from('produtos').select().order('codigo');
       return (response as List).map((json) => Produto.fromJson(json)).toList();
     } catch (e) {
       throw Exception('Erro ao buscar produtos: $e');
